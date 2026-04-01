@@ -128,7 +128,15 @@
                 <h2 class="text-xl font-semibold mb-4">New Transaction</h2>
 
                 <div class="space-y-4">
-                    <input id="name" placeholder="Name" class="w-full p-3 text-base rounded bg-slate-800 outline-none">
+                    <div class="relative">
+                        <input id="name" placeholder="Name" oninput="showNameSuggestions(this.value)"
+                            onkeydown="handleNameEnter(event)"
+                            class="w-full p-3 text-base rounded bg-slate-800 outline-none">
+
+                        <div id="nameSuggestions"
+                            class="absolute left-0 right-0 bg-slate-800 border border-slate-700 rounded-lg mt-1 hidden z-50 max-h-40 overflow-y-auto">
+                        </div>
+                    </div>
                     <input id="weight" type="number" placeholder="Weight (g)"
                         class="w-full p-3 text-base rounded bg-slate-800 outline-none">
                     <input id="rate" type="number" placeholder="Rate per 10g"
@@ -180,9 +188,11 @@
         let transactions = [];
         let currentTab = 'buy';
         let sortBy = 'name';
-        const LOGIN_API = "https://script.google.com/macros/s/AKfycbwdwtidTrmxTFNDWSGEGGMPdh1b4It9ztkZ3g8qoeqn_NqF9gb4_uU4qm8EMlbpBe35/exec";
+        const LOGIN_API = "https://script.google.com/macros/s/AKfycbxb56hTOIFkjq_m8_xfJ5YtPdZgN3fnCtcuU2fcSgMvm789eFwtHFrkm02epHcAx9MX/exec";
         let selectionMode = false;
         let selectedIds = new Set();
+        let suggestionIndex = -1;
+        let currentSuggestions = [];
 
         function showLoading() {
             document.getElementById("loadingOverlay").classList.remove("hidden");
@@ -192,9 +202,145 @@
             document.getElementById("loadingOverlay").classList.add("hidden");
         }
 
+        function getUniqueNames() {
+            return [...new Set(transactions.map(t => t.name))];
+        }
+
+        function showNameSuggestions(value) {
+            let box = document.getElementById("nameSuggestions");
+
+            if (!value) {
+                box.classList.add("hidden");
+                return;
+            }
+
+            let names = getUniqueNames().filter(n =>
+                n.toLowerCase().includes(value.toLowerCase())
+            );
+
+            currentSuggestions = names;
+            suggestionIndex = -1;
+
+            if (names.length === 0) {
+                box.classList.add("hidden");
+                return;
+            }
+
+            box.innerHTML = names.map((n, i) => {
+                let regex = new RegExp(`(${value})`, "ig");
+                let highlighted = n.replace(regex, `<span class="text-indigo-400">$1</span>`);
+
+                return `
+        <div 
+            id="suggestion-${i}"
+            onclick="selectName('${n}')"
+            class="p-2 cursor-pointer text-sm hover:bg-slate-700">
+            ${highlighted}
+        </div>`;
+            }).join("");
+
+            box.classList.remove("hidden");
+        }
+
+        function updateHighlight() {
+            currentSuggestions.forEach((_, i) => {
+                let el = document.getElementById(`suggestion-${i}`);
+                if (!el) return;
+
+                if (i === suggestionIndex) {
+                    el.classList.add("bg-slate-700");
+                } else {
+                    el.classList.remove("bg-slate-700");
+                }
+            });
+        }
+
+        function selectName(name) {
+            document.getElementById("name").value = name;
+            document.getElementById("nameSuggestions").classList.add("hidden");
+            document.getElementById("weight").focus();
+        }
+
+        function handleNameEnter(e) {
+            let box = document.getElementById("nameSuggestions");
+
+            if (box.classList.contains("hidden")) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    document.getElementById("weight").focus();
+                }
+                return;
+            }
+
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                suggestionIndex = (suggestionIndex + 1) % currentSuggestions.length;
+                updateHighlight();
+            }
+
+            else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                suggestionIndex =
+                    (suggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+                updateHighlight();
+            }
+
+            else if (e.key === "Enter") {
+                e.preventDefault();
+
+                if (suggestionIndex >= 0) {
+                    selectName(currentSuggestions[suggestionIndex]);
+                } else if (currentSuggestions.length > 0) {
+                    // ✅ Auto-select first suggestion
+                    selectName(currentSuggestions[0]);
+                } else {
+                    document.getElementById("weight").focus();
+                }
+            }
+        }
+
+        document.getElementById("weight").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                document.getElementById("rate").focus();
+            }
+        });
+
+        document.getElementById("rate").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                addTransaction();
+            }
+        });
+
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest("#name")) {
+                document.getElementById("nameSuggestions").classList.add("hidden");
+            }
+        });
 
         function toggleForm() {
-            document.getElementById('overlay').classList.toggle('hidden');
+            let overlay = document.getElementById('overlay');
+            overlay.classList.toggle('hidden');
+
+            // ✅ When opening → reset + focus
+            if (!overlay.classList.contains('hidden')) {
+
+                // 🔄 Clear fields
+                document.getElementById("name").value = "";
+                document.getElementById("weight").value = "";
+                document.getElementById("rate").value = "";
+
+                // 🔽 Hide suggestions if open
+                document.getElementById("nameSuggestions").classList.add("hidden");
+
+                // 🎯 Focus + select
+                setTimeout(() => {
+                    let nameInput = document.getElementById("name");
+                    nameInput.focus();
+                    nameInput.select();
+                }, 50);
+            }
         }
 
         function switchTab(tab) {
