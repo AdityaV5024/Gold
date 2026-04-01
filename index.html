@@ -439,6 +439,13 @@
                 filtered = transactions.filter(t => t.type === currentTab && !t.done);
             }
 
+            // ✅ APPLY SORT
+            if (sortBy === 'name') {
+                filtered.sort((a, b) => a.name.localeCompare(b.name));
+            } else {
+                filtered.sort((a, b) => b.id - a.id); // latest first
+            }
+
             filtered.forEach(t => {
                 if (!t.done) {
                     total += t.amount;
@@ -613,7 +620,9 @@
             let dropdown = document.getElementById("accountFilter");
             dropdown.innerHTML = `<option value="">Select Account</option>`;
 
-            let names = [...new Set(transactions.map(t => t.name))];
+            // ✅ Get unique names + sort A-Z
+            let names = [...new Set(transactions.map(t => t.name))]
+                .sort((a, b) => a.localeCompare(b));
 
             names.forEach(name => {
                 let opt = document.createElement("option");
