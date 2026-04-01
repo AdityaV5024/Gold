@@ -482,9 +482,6 @@
   onclick="handleCardClick(${t.id})"
   class="relative overflow-hidden p-4 rounded-2xl cursor-pointer border border-slate-800 shadow-sm transition-transform duration-300 ${selectedIds.has(t.id) ? 'opacity-50' : ''}" 
   style="background:var(--panel)"
-  ontouchstart="startSwipe(event, ${t.id})"
-  ontouchmove="moveSwipe(event, ${t.id})"
-  ontouchend="endSwipe(${t.id})"
   id="card-${t.id}"
 >
   
@@ -582,9 +579,6 @@
 
         switchTab('buy');
 
-        let swipeStartX = 0;
-        let currentSwipeId = null;
-
         function getInitial(name) {
             if (!name) return "?";
             return name.trim()[0].toUpperCase();
@@ -606,37 +600,6 @@
             }
 
             return colors[Math.abs(hash) % colors.length];
-        }
-
-        function startSwipe(e, id) {
-            swipeStartX = e.touches[0].clientX;
-            currentSwipeId = id;
-        }
-
-        function moveSwipe(e, id) {
-            if (currentSwipeId !== id) return;
-
-            let dx = e.touches[0].clientX - swipeStartX;
-
-            if (dx < 0) { // only swipe left
-                document.getElementById('card-' + id).style.transform = `translateX(${dx}px)`;
-            }
-        }
-
-        function endSwipe(id) {
-            let card = document.getElementById('card-' + id);
-            let transform = card.style.transform;
-
-            let moved = transform.match(/-?\d+/);
-            let distance = moved ? parseInt(moved[0]) : 0;
-
-            if (distance < -100) {
-                deleteTx(id);
-            } else {
-                card.style.transform = 'translateX(0)';
-            }
-
-            currentSwipeId = null;
         }
 
         function populateAccounts() {
