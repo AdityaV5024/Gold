@@ -88,19 +88,21 @@
 
         <!-- TOP BAR -->
         <div class="flex gap-3 mb-3 items-center">
-            <div class="flex-1 grid grid-cols-2 gap-2 bg-slate-900/60 p-1 rounded-2xl">
+            <div class="flex-1 grid grid-cols-3 gap-2 bg-slate-900/60 p-1 rounded-2xl">
                 <button onclick="switchTab('buy')" id="buyTabBtn" class="p-3 rounded-xl text-base">Buy</button>
                 <button onclick="switchTab('sell')" id="sellTabBtn" class="p-3 rounded-xl text-base">Sell</button>
+                <button onclick="switchTab('settled')" id="settledTabBtn"
+                    class="p-3 rounded-xl text-base">Settled</button>
             </div>
             <button onclick="toggleForm()" class="px-5 py-3 rounded-xl text-white text-base shadow"
-                style="background:linear-gradient(90deg,var(--accent),var(--accent-2))">+ Add</button>
+                style="background:linear-gradient(90deg,var(--accent),var(--accent-2))" id="addBtn">+ Add</button>
         </div>
 
         <!-- SORT -->
         <div class="flex justify-end mb-4">
             <select onchange="setSort(this.value)" class="bg-slate-800 p-2 rounded-lg text-sm">
-                <option value="time">Sort by Time</option>
                 <option value="name">Sort A-Z</option>
+                <option value="time">Sort by Time</option>
             </select>
         </div>
 
@@ -128,7 +130,7 @@
         </div>
 
         <!-- TOTAL -->
-        <div class="mb-5 grid grid-cols-2 gap-3">
+        <div class="mb-5 grid grid-cols-2 gap-3" id="totalsSection">
             <div class="p-4 rounded-2xl border border-slate-800" style="background:var(--panel)">
                 <p class="text-xs text-slate-400">Total ₹</p>
                 <p id="totalValue" class="text-2xl font-bold">₹0</p>
@@ -139,6 +141,23 @@
             </div>
         </div>
 
+        <div id="selectionBar" class="hidden flex gap-3 mb-4">
+
+            <button onclick="bulkSettleAction()" id="bulkSettleBtn"
+                class="flex-1 py-3 rounded-xl bg-green-600 text-white text-base">
+                Settle
+            </button>
+
+            <button onclick="bulkDelete()" class="flex-1 py-3 rounded-xl bg-red-600 text-white text-base">
+                Delete
+            </button>
+
+            <button onclick="exitSelection()" class="flex-1 py-3 rounded-xl bg-slate-700 text-white text-base">
+                Back
+            </button>
+
+        </div>
+
         <!-- LIST -->
         <div id="list" class="space-y-4"></div>
     </div>
@@ -146,8 +165,10 @@
     <script>
         let transactions = [];
         let currentTab = 'buy';
-        let sortBy = 'time';
-        const LOGIN_API = "https://script.google.com/macros/s/AKfycbwO3lB7BFhCVZTmycWsh315gFIZ80SFvtxKpmd0kzVB5cTTMnDmJorLFempZkOwwJxT/exec";
+        let sortBy = 'name';
+        const LOGIN_API = "https://script.google.com/macros/s/AKfycbwdwtidTrmxTFNDWSGEGGMPdh1b4It9ztkZ3g8qoeqn_NqF9gb4_uU4qm8EMlbpBe35/exec";
+        let selectionMode = false;
+        let selectedIds = new Set();
 
         function showLoading() {
             document.getElementById("loadingOverlay").classList.remove("hidden");
@@ -165,9 +186,26 @@
         function switchTab(tab) {
             currentTab = tab;
 
-            document.getElementById('buyTabBtn').className = tab === 'buy' ? 'p-3 rounded-xl bg-green-500/20 text-green-400 text-base' : 'p-3 rounded-xl text-slate-400 text-base';
-            document.getElementById('sellTabBtn').className = tab === 'sell' ? 'p-3 rounded-xl bg-red-500/20 text-red-400 text-base' : 'p-3 rounded-xl text-slate-400 text-base';
-            loadTransactions();
+            document.getElementById('buyTabBtn').className =
+                tab === 'buy'
+                    ? 'p-3 rounded-xl bg-green-500/20 text-green-400 text-base'
+                    : 'p-3 rounded-xl text-slate-400 text-base';
+
+            document.getElementById('sellTabBtn').className =
+                tab === 'sell'
+                    ? 'p-3 rounded-xl bg-red-500/20 text-red-400 text-base'
+                    : 'p-3 rounded-xl text-slate-400 text-base';
+
+            document.getElementById('settledTabBtn').className =
+                tab === 'settled'
+                    ? 'p-3 rounded-xl bg-indigo-500/20 text-indigo-400 text-base'
+                    : 'p-3 rounded-xl text-slate-400 text-base';
+
+            document.getElementById("addBtn").style.display =
+                tab === "settled" ? "none" : "block";
+
+            document.getElementById("totalsSection").style.display =
+                tab === "settled" ? "none" : "grid";
             render();
         }
 
@@ -176,6 +214,30 @@
             render();
         }
 
+        function handleCardClick(id) {
+            if (!selectionMode) {
+                selectionMode = true;
+                selectedIds.add(id);
+            } else {
+                if (selectedIds.has(id)) {
+                    selectedIds.delete(id);
+                } else {
+                    selectedIds.add(id);
+                }
+
+                if (selectedIds.size === 0) {
+                    selectionMode = false;
+                }
+            }
+
+            render();
+        }
+        
+        function exitSelection() {
+            selectionMode = false;
+            selectedIds.clear();
+            render();
+        }
 
         function render() {
             let container = document.getElementById('list');
@@ -184,7 +246,13 @@
             let total = 0;
             let gold = 0;
 
-            let filtered = transactions.filter(t => t.type === currentTab);
+            let filtered;
+
+            if (currentTab === 'settled') {
+                filtered = transactions.filter(t => t.done);
+            } else {
+                filtered = transactions.filter(t => t.type === currentTab && !t.done);
+            }
 
             if (sortBy === 'name') {
                 filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -202,7 +270,8 @@
 
                 let card = `
 <div 
-  class="relative overflow-hidden p-4 rounded-2xl border border-slate-800 shadow-sm transition-transform duration-300 ${t.done ? 'opacity-40' : ''}" 
+  onclick="handleCardClick(${t.id})"
+  class="relative overflow-hidden p-4 rounded-2xl cursor-pointer border border-slate-800 shadow-sm transition-transform duration-300 ${selectedIds.has(t.id) ? 'opacity-50' : ''}" 
   style="background:var(--panel)"
   ontouchstart="startSwipe(event, ${t.id})"
   ontouchmove="moveSwipe(event, ${t.id})"
@@ -215,21 +284,46 @@
                 
   <!-- TOP ROW -->
   <div class="flex justify-between items-center">
-    <div>
-      <p class="font-semibold text-lg flex items-center gap-2">
-        ${t.name} ${badge}
-      </p>
-      <p class="text-xs text-slate-400">${new Date(t.date).toLocaleString()}</p>
-    </div>
-
     <div class="flex items-center gap-3">
-      <input type="checkbox" ${t.done ? 'checked' : ''} onclick="toggle(${t.id})" class="scale-125 cursor-pointer">
-      
-      <button onclick="deleteTx(${t.id})"
-        class="px-3 py-1.5 text-xs rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition">
-        Delete
-      </button>
-    </div>
+
+  <!-- Avatar -->
+  <div class="w-10 h-10 flex items-center justify-center text-sm font-bold text-white
+    bg-gradient-to-br ${getGradient(t.user)}
+    rounded-[12px]">
+    ${getInitial(t.user)}
+  </div>
+
+  <!-- Name + Date -->
+  <div>
+    <p class="font-semibold text-lg flex items-center gap-2">
+      ${t.name} ${badge}
+    </p>
+    <p class="text-xs text-slate-400">
+      ${new Date(t.date).toLocaleString()}
+    </p>
+  </div>
+
+</div>
+
+    <div class="flex items-center gap-2">
+
+  <button 
+    onclick="event.stopPropagation(); if(!selectionMode) toggle(${t.id})"
+    class="px-3 py-1.5 text-xs rounded-lg transition
+    ${t.done
+                        ? 'border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/10'
+                        : 'border border-green-500/30 text-green-400 hover:bg-green-500/10'}">
+    
+    ${t.done ? 'Unsettle' : 'Settle'}
+  </button>
+
+  <button 
+    onclick="event.stopPropagation(); if(!selectionMode) deleteTx(${t.id})"
+    class="px-3 py-1.5 text-xs rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition">
+    Delete
+  </button>
+
+</div>
   </div>
 
   <!-- DATA ROW -->
@@ -258,6 +352,23 @@
 
             document.getElementById('totalValue').innerText = '₹' + Math.round(total);
             document.getElementById('goldTotal').innerText = gold.toFixed(2) + 'g';
+
+            let btn = document.getElementById("bulkSettleBtn");
+
+            if (btn) {
+                if (currentTab === "settled") {
+                    btn.innerText = "Unsettle";
+                    btn.className = "flex-1 py-3 rounded-xl bg-yellow-600 text-white text-base";
+                } else {
+                    btn.innerText = "Settle";
+                    btn.className = "flex-1 py-3 rounded-xl bg-green-600 text-white text-base";
+                }
+            }
+
+            document.getElementById("selectionBar").classList.toggle(
+                "hidden",
+                !selectionMode
+            );
         }
 
         switchTab('buy');
@@ -265,6 +376,28 @@
         let swipeStartX = 0;
         let currentSwipeId = null;
 
+        function getInitial(name) {
+            if (!name) return "?";
+            return name.trim()[0].toUpperCase();
+        }
+
+        function getGradient(name) {
+            const colors = [
+                "from-indigo-500 to-purple-500",
+                "from-pink-500 to-rose-500",
+                "from-green-500 to-emerald-500",
+                "from-yellow-500 to-orange-500",
+                "from-blue-500 to-cyan-500",
+                "from-fuchsia-500 to-pink-500"
+            ];
+
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+
+            return colors[Math.abs(hash) % colors.length];
+        }
 
         function startSwipe(e, id) {
             swipeStartX = e.touches[0].clientX;
@@ -417,7 +550,8 @@
                     amount: Number(r.Amt),
                     type: (r["Buy/Sell"] || "").toLowerCase(),
                     done: (r["Settled"] || "").toLowerCase() === "yes",
-                    date: r["Date/Time"]
+                    date: r["Date/Time"],
+                    user: r.User
                 }));
 
                 render();
@@ -476,6 +610,68 @@
             let el = document.getElementById("loginError");
             el.innerText = msg;
             el.classList.remove("hidden");
+        }
+
+        async function bulkSettleAction() {
+            if (selectedIds.size === 0) return;
+
+            let settle = currentTab === "settled" ? false : true;
+
+            showLoading();
+
+            try {
+                await fetch(LOGIN_API, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "bulkSettle",
+                        ids: Array.from(selectedIds),
+                        settled: settle ? "Yes" : "No"
+                    })
+                });
+
+                transactions.forEach(t => {
+                    if (selectedIds.has(t.id)) {
+                        t.done = settle;
+                    }
+                });
+
+                selectionMode = false;
+                selectedIds.clear();
+                render();
+
+            } catch (err) {
+                alert("Error updating");
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function bulkDelete() {
+            if (selectedIds.size === 0) return;
+            if (!confirm("Delete selected transactions?")) return;
+
+            showLoading();
+
+            try {
+                await fetch(LOGIN_API, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "bulkDelete",
+                        ids: Array.from(selectedIds)
+                    })
+                });
+
+                transactions = transactions.filter(t => !selectedIds.has(t.id));
+
+                selectionMode = false;
+                selectedIds.clear();
+                render();
+
+            } catch (err) {
+                alert("Error deleting");
+            } finally {
+                hideLoading();
+            }
         }
 
         // CHECK LOGIN ON LOAD
