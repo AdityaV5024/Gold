@@ -88,22 +88,36 @@
 
         <!-- TOP BAR -->
         <div class="flex gap-3 mb-3 items-center">
-            <div class="flex-1 grid grid-cols-3 gap-2 bg-slate-900/60 p-1 rounded-2xl">
+            <div class="flex-1 grid grid-cols-4 gap-2 bg-slate-900/60 p-1 rounded-2xl">
                 <button onclick="switchTab('buy')" id="buyTabBtn" class="p-3 rounded-xl text-base">Buy</button>
                 <button onclick="switchTab('sell')" id="sellTabBtn" class="p-3 rounded-xl text-base">Sell</button>
                 <button onclick="switchTab('settled')" id="settledTabBtn"
                     class="p-3 rounded-xl text-base">Settled</button>
+                <button onclick="switchTab('accounts')" id="accountsTabBtn"
+                    class="p-3 rounded-xl text-base">Accounts</button>
             </div>
-            <button onclick="toggleForm()" class="px-5 py-3 rounded-xl text-white text-base shadow"
-                style="background:linear-gradient(90deg,var(--accent),var(--accent-2))" id="addBtn">+ Add</button>
         </div>
 
-        <!-- SORT -->
-        <div class="flex justify-end mb-4">
-            <select onchange="setSort(this.value)" class="bg-slate-800 p-2 rounded-lg text-sm">
+        <!-- FILTER + SORT + ADD -->
+        <div class="flex gap-2 mb-4 items-center">
+
+            <!-- Account Filter -->
+            <select id="accountFilter" onchange="setAccount(this.value)"
+                class="hidden bg-slate-800 p-2 rounded-lg text-sm">
+            </select>
+
+            <!-- Add Button -->
+            <button onclick="toggleForm()" id="addBtn" class="px-4 py-2 rounded-lg text-white text-sm shadow"
+                style="background:linear-gradient(90deg,var(--accent),var(--accent-2))">
+                + Add
+            </button>
+
+            <!-- Sort -->
+            <select onchange="setSort(this.value)" class="bg-slate-800 p-2 rounded-lg text-sm ml-auto">
                 <option value="name">Sort A-Z</option>
                 <option value="time">Sort by Time</option>
             </select>
+
         </div>
 
         <!-- OVERLAY FORM -->
@@ -206,6 +220,22 @@
 
             document.getElementById("totalsSection").style.display =
                 tab === "settled" ? "none" : "grid";
+
+            document.getElementById("accountFilter").classList.toggle(
+                "hidden",
+                tab !== "accounts"
+            );
+
+            document.getElementById('accountsTabBtn').className =
+                tab === 'accounts'
+                    ? 'p-3 rounded-xl bg-indigo-500/20 text-indigo-400 text-base'
+                    : 'p-3 rounded-xl text-slate-400 text-base';
+
+            document.getElementById("addBtn").style.display =
+                tab === "accounts" || tab === "settled" ? "none" : "block";
+
+            selectedAccount = null;
+            populateAccounts();
             render();
         }
 
@@ -232,7 +262,7 @@
 
             render();
         }
-        
+
         function exitSelection() {
             selectionMode = false;
             selectedIds.clear();
@@ -250,14 +280,17 @@
 
             if (currentTab === 'settled') {
                 filtered = transactions.filter(t => t.done);
+
+            } else if (currentTab === 'accounts') {
+
+                if (!selectedAccount) {
+                    filtered = [];
+                } else {
+                    filtered = transactions.filter(t => t.name === selectedAccount);
+                }
+
             } else {
                 filtered = transactions.filter(t => t.type === currentTab && !t.done);
-            }
-
-            if (sortBy === 'name') {
-                filtered.sort((a, b) => a.name.localeCompare(b.name));
-            } else {
-                filtered.sort((a, b) => b.id - a.id);
             }
 
             filtered.forEach(t => {
@@ -428,6 +461,25 @@
             }
 
             currentSwipeId = null;
+        }
+
+        function populateAccounts() {
+            let dropdown = document.getElementById("accountFilter");
+            dropdown.innerHTML = `<option value="">Select Account</option>`;
+
+            let names = [...new Set(transactions.map(t => t.name))];
+
+            names.forEach(name => {
+                let opt = document.createElement("option");
+                opt.value = name;
+                opt.textContent = name;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        function setAccount(name) {
+            selectedAccount = name;
+            render();
         }
 
 
