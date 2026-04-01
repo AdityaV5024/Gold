@@ -26,8 +26,57 @@
 
 <body class="text-slate-200">
 
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="fixed inset-0 flex items-center justify-center bg-black z-50">
+        <div class="bg-slate-900 p-6 rounded-2xl w-[90%] max-w-sm border border-slate-800 shadow-xl">
+
+            <h2 class="text-xl font-semibold mb-5 text-center">Gold Ledger Login</h2>
+
+            <div class="space-y-3">
+                <input id="userId" placeholder="User ID"
+                    class="w-full p-3 rounded-lg bg-slate-800 outline-none text-base">
+
+                <input id="password" type="password" placeholder="Password"
+                    class="w-full p-3 rounded-lg bg-slate-800 outline-none text-base">
+            </div>
+
+            <button id="loginBtn" onclick="login()"
+                class="w-full mt-4 p-3 rounded-lg text-white text-base flex items-center justify-center gap-2 transition"
+                style="background:linear-gradient(90deg,#6366f1,#4f46e5)">
+
+                <span id="loginText">Login</span>
+
+                <!-- Spinner -->
+                <svg id="loginSpinner" class="hidden animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+                    fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+                    </path>
+                </svg>
+
+            </button>
+
+            <p id="loginError" class="text-red-400 text-sm mt-3 text-center hidden">
+                Invalid User ID or Password
+            </p>
+
+        </div>
+    </div>
+
+
     <div class="max-w-5xl mx-auto p-4">
         <h1 class="text-2xl font-semibold text-center mb-5 tracking-wide">Gold Ledger</h1>
+
+        <div class="flex justify-between items-center mb-4">
+            <p class="text-sm text-slate-400">
+                Logged in as <span id="currentUser" class="text-slate-200"></span>
+            </p>
+
+            <button onclick="logout()"
+                class="px-3 py-1.5 text-xs rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition">
+                Logout
+            </button>
+        </div>
 
         <!-- TOP BAR -->
         <div class="flex gap-3 mb-3 items-center">
@@ -87,13 +136,12 @@
     </div>
 
     <script>
-        let transactions = JSON.parse(localStorage.getItem('goldData')) || [];
+        let transactions = [];
         let currentTab = 'buy';
         let sortBy = 'time';
+        const LOGIN_API = "https://script.google.com/macros/s/AKfycbwO3lB7BFhCVZTmycWsh315gFIZ80SFvtxKpmd0kzVB5cTTMnDmJorLFempZkOwwJxT/exec";
 
-        function saveData() {
-            localStorage.setItem('goldData', JSON.stringify(transactions));
-        }
+
 
         function toggleForm() {
             document.getElementById('overlay').classList.toggle('hidden');
@@ -104,7 +152,7 @@
 
             document.getElementById('buyTabBtn').className = tab === 'buy' ? 'p-3 rounded-xl bg-green-500/20 text-green-400 text-base' : 'p-3 rounded-xl text-slate-400 text-base';
             document.getElementById('sellTabBtn').className = tab === 'sell' ? 'p-3 rounded-xl bg-red-500/20 text-red-400 text-base' : 'p-3 rounded-xl text-slate-400 text-base';
-
+            loadTransactions();
             render();
         }
 
@@ -113,46 +161,7 @@
             render();
         }
 
-        function addTransaction() {
-            let name = document.getElementById('name').value;
-            let weight = parseFloat(document.getElementById('weight').value);
-            let rate = parseFloat(document.getElementById('rate').value);
-
-            if (!name || !weight || !rate) return alert("Fill all fields");
-
-            let amount = (weight / 10) * rate;
-
-            let obj = {
-                id: Date.now(),
-                name, weight, rate, amount,
-                type: currentTab,
-                done: false,
-                date: new Date().toLocaleString()
-            };
-
-            transactions.push(obj);
-            saveData();
-            render();
-            toggleForm();
-        }
-
-        function toggle(id) {
-            transactions = transactions.map(t => {
-                if (t.id === id) t.done = !t.done;
-                return t;
-            });
-            saveData();
-            render();
-        }
-
-        function deleteTx(id) {
-            if (confirm("Delete this transaction?")) {
-                transactions = transactions.filter(t => t.id !== id);
-                saveData();
-                render();
-            }
-        }
-
+       
         function render() {
             let container = document.getElementById('list');
             container.innerHTML = "";
@@ -178,7 +187,7 @@
 
                 let card = `
 <div 
-  class="relative overflow-hidden p-4 rounded-2xl border border-slate-800 shadow-sm transition-transform duration-300 ${t.done?'opacity-40':''}" 
+  class="relative overflow-hidden p-4 rounded-2xl border border-slate-800 shadow-sm transition-transform duration-300 ${t.done ? 'opacity-40' : ''}" 
   style="background:var(--panel)"
   ontouchstart="startSwipe(event, ${t.id})"
   ontouchmove="moveSwipe(event, ${t.id})"
@@ -187,7 +196,7 @@
 >
   
   <!-- Accent Strip -->
-  <div class="absolute left-0 top-0 h-full w-1 ${t.type==='buy' ? 'bg-green-500' : 'bg-red-500'}"></div>
+  <div class="absolute left-0 top-0 h-full w-1 ${t.type === 'buy' ? 'bg-green-500' : 'bg-red-500'}"></div>
                 
   <!-- TOP ROW -->
   <div class="flex justify-between items-center">
@@ -195,7 +204,7 @@
       <p class="font-semibold text-lg flex items-center gap-2">
         ${t.name} ${badge}
       </p>
-      <p class="text-xs text-slate-400">${t.date}</p>
+      <p class="text-xs text-slate-400">${new Date(t.date).toLocaleString()}</p>
     </div>
 
     <div class="flex items-center gap-3">
@@ -238,41 +247,229 @@
 
         switchTab('buy');
 
-
-
         let swipeStartX = 0;
-let currentSwipeId = null;
+        let currentSwipeId = null;
 
-function startSwipe(e, id){
-  swipeStartX = e.touches[0].clientX;
-  currentSwipeId = id;
+
+        function startSwipe(e, id) {
+            swipeStartX = e.touches[0].clientX;
+            currentSwipeId = id;
+        }
+
+        function moveSwipe(e, id) {
+            if (currentSwipeId !== id) return;
+
+            let dx = e.touches[0].clientX - swipeStartX;
+
+            if (dx < 0) { // only swipe left
+                document.getElementById('card-' + id).style.transform = `translateX(${dx}px)`;
+            }
+        }
+
+        function endSwipe(id) {
+            let card = document.getElementById('card-' + id);
+            let transform = card.style.transform;
+
+            let moved = transform.match(/-?\d+/);
+            let distance = moved ? parseInt(moved[0]) : 0;
+
+            if (distance < -100) {
+                deleteTx(id);
+            } else {
+                card.style.transform = 'translateX(0)';
+            }
+
+            currentSwipeId = null;
+        }
+
+
+         async function addTransaction() {
+    let name = document.getElementById('name').value;
+    let weight = parseFloat(document.getElementById('weight').value);
+    let rate = parseFloat(document.getElementById('rate').value);
+
+    if (!name || !weight || !rate) return alert("Fill all fields");
+
+    let amount = (weight / 10) * rate;
+
+    let payload = {
+        action: "add",
+        date: new Date().toISOString(),
+        name,
+        type: currentTab,
+        weight,
+        rate,
+        amount: Math.round(amount),
+        settled: "No",
+        user: localStorage.getItem("userId")
+    };
+
+    try {
+        let res = await fetch(LOGIN_API, {
+            method: "POST",
+            body: JSON.stringify(payload)
+        });
+
+        let result = await res.json();
+
+        transactions.push({
+            id: result.id,
+            name,
+            weight,
+            rate,
+            amount: Math.round(amount),
+            type: currentTab,
+            done: false,
+            date: payload.date
+        });
+
+        render();
+        toggleForm();
+
+    } catch (err) {
+        alert("Error saving data");
+    }
 }
+        
+        async function toggle(id) {
+    let tx = transactions.find(t => t.id === id);
+    if (!tx) return;
 
-function moveSwipe(e, id){
-  if(currentSwipeId !== id) return;
+    tx.done = !tx.done;
 
-  let dx = e.touches[0].clientX - swipeStartX;
+    try {
+        await fetch(LOGIN_API, {
+            method: "POST",
+            body: JSON.stringify({
+                action: "settle",
+                id: id,
+                settled: tx.done ? "Yes" : "No"
+            })
+        });
 
-  if(dx < 0){ // only swipe left
-    document.getElementById('card-'+id).style.transform = `translateX(${dx}px)`;
-  }
+        render();
+
+    } catch (err) {
+        alert("Error updating");
+    }
 }
+        
+        async function deleteTx(id) {
+    if (!confirm("Delete this transaction?")) return;
 
-function endSwipe(id){
-  let card = document.getElementById('card-'+id);
-  let transform = card.style.transform;
-  
-  let moved = transform.match(/-?\d+/);
-  let distance = moved ? parseInt(moved[0]) : 0;
+    try {
+        await fetch(LOGIN_API, {
+            method: "POST",
+            body: JSON.stringify({
+                action: "delete",
+                id: id
+            })
+        });
 
-  if(distance < -100){
-    deleteTx(id);
-  } else {
-    card.style.transform = 'translateX(0)';
-  }
+        transactions = transactions.filter(t => t.id !== id);
+        render();
 
-  currentSwipeId = null;
+    } catch (err) {
+        alert("Error deleting");
+    }
 }
+        
+        async function loadTransactions() {
+    try {
+        let res = await fetch(LOGIN_API);
+        let data = await res.json();
+
+        console.log("RAW DATA:", data);
+
+        if (!Array.isArray(data)) {
+            throw new Error("Invalid data format");
+        }
+
+        transactions = data.map(r => ({
+            id: Number(r.ID),
+            name: r.Name,
+            weight: Number(r.Weight),
+            rate: Number(r.Rate),
+            amount: Number(r.Amt),
+            type: (r["Buy/Sell"] || "").toLowerCase(),
+            done: (r["Settled"] || "").toLowerCase() === "yes",
+            date: r["Date/Time"]
+        }));
+
+        render();
+
+    } catch (err) {
+        console.error(err);
+        alert("Error loading data: " + err.message);
+    }
+}
+        
+        async function login() {
+            let userId = document.getElementById('userId').value.trim();
+            let password = document.getElementById('password').value.trim();
+
+            if (!userId || !password) {
+                showError("Please fill all fields");
+                return;
+            }
+
+            // 🔄 Start loading
+            let btn = document.getElementById("loginBtn");
+            let spinner = document.getElementById("loginSpinner");
+
+            btn.disabled = true;
+            btn.classList.add("opacity-60", "cursor-not-allowed");
+            spinner.classList.remove("hidden");
+
+            try {
+                let res = await fetch(`${LOGIN_API}?action=login&userId=${encodeURIComponent(userId)}&password=${encodeURIComponent(password)}`);
+                let data = await res.json();
+
+                if (data.success) {
+                    localStorage.setItem("loggedIn", "true");
+                    localStorage.setItem("userId", userId);
+
+                    document.getElementById("loginScreen").style.display = "none";
+                    document.getElementById("currentUser").innerText = userId;
+                    loadTransactions();
+                } else {
+                    showError("Invalid User ID or Password");
+                }
+
+            } catch (err) {
+                showError("Server error. Try again.");
+            }
+
+            // 🔄 Stop loading
+            btn.disabled = false;
+            btn.classList.remove("opacity-60", "cursor-not-allowed");
+            spinner.classList.add("hidden");
+        }
+
+        function showError(msg) {
+            let el = document.getElementById("loginError");
+            el.innerText = msg;
+            el.classList.remove("hidden");
+        }
+
+        // CHECK LOGIN ON LOAD
+        if (localStorage.getItem("loggedIn") === "true") {
+            document.getElementById("loginScreen").style.display = "none";
+
+            if (localStorage.getItem("userId")) {
+                document.getElementById("currentUser").innerText = localStorage.getItem("userId");
+            }
+
+            loadTransactions(); // IMPORTANT
+        } else {
+            document.getElementById("loginScreen").style.display = "flex";
+        }
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+
     </script>
 
 </body>
