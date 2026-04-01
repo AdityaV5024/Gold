@@ -24,6 +24,14 @@
     </style>
 </head>
 
+<div id="loadingOverlay"
+    class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+    <div class="bg-slate-900 px-6 py-4 rounded-2xl flex items-center gap-3 shadow-xl">
+        <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <span class="text-white text-sm">Processing...</span>
+    </div>
+</div>
+
 <body class="text-slate-200">
 
     <!-- LOGIN SCREEN -->
@@ -141,6 +149,13 @@
         let sortBy = 'time';
         const LOGIN_API = "https://script.google.com/macros/s/AKfycbwO3lB7BFhCVZTmycWsh315gFIZ80SFvtxKpmd0kzVB5cTTMnDmJorLFempZkOwwJxT/exec";
 
+        function showLoading() {
+            document.getElementById("loadingOverlay").classList.remove("hidden");
+        }
+
+        function hideLoading() {
+            document.getElementById("loadingOverlay").classList.add("hidden");
+        }
 
 
         function toggleForm() {
@@ -161,7 +176,7 @@
             render();
         }
 
-       
+
         function render() {
             let container = document.getElementById('list');
             container.innerHTML = "";
@@ -283,127 +298,138 @@
         }
 
 
-         async function addTransaction() {
-    let name = document.getElementById('name').value;
-    let weight = parseFloat(document.getElementById('weight').value);
-    let rate = parseFloat(document.getElementById('rate').value);
+        async function addTransaction() {
+            let name = document.getElementById('name').value;
+            let weight = parseFloat(document.getElementById('weight').value);
+            let rate = parseFloat(document.getElementById('rate').value);
 
-    if (!name || !weight || !rate) return alert("Fill all fields");
+            if (!name || !weight || !rate) return alert("Fill all fields");
 
-    let amount = (weight / 10) * rate;
+            let amount = (weight / 10) * rate;
 
-    let payload = {
-        action: "add",
-        date: new Date().toISOString(),
-        name,
-        type: currentTab,
-        weight,
-        rate,
-        amount: Math.round(amount),
-        settled: "No",
-        user: localStorage.getItem("userId")
-    };
+            let payload = {
+                action: "add",
+                date: new Date().toISOString(),
+                name,
+                type: currentTab,
+                weight,
+                rate,
+                amount: Math.round(amount),
+                settled: "No",
+                user: localStorage.getItem("userId")
+            };
+            toggleForm();
 
-    try {
-        let res = await fetch(LOGIN_API, {
-            method: "POST",
-            body: JSON.stringify(payload)
-        });
+            showLoading();
+            try {
+                let res = await fetch(LOGIN_API, {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
 
-        let result = await res.json();
+                let result = await res.json();
 
-        transactions.push({
-            id: result.id,
-            name,
-            weight,
-            rate,
-            amount: Math.round(amount),
-            type: currentTab,
-            done: false,
-            date: payload.date
-        });
+                transactions.push({
+                    id: result.id,
+                    name,
+                    weight,
+                    rate,
+                    amount: Math.round(amount),
+                    type: currentTab,
+                    done: false,
+                    date: payload.date
+                });
 
-        render();
-        toggleForm();
+                render();
 
-    } catch (err) {
-        alert("Error saving data");
-    }
-}
-        
-        async function toggle(id) {
-    let tx = transactions.find(t => t.id === id);
-    if (!tx) return;
-
-    tx.done = !tx.done;
-
-    try {
-        await fetch(LOGIN_API, {
-            method: "POST",
-            body: JSON.stringify({
-                action: "settle",
-                id: id,
-                settled: tx.done ? "Yes" : "No"
-            })
-        });
-
-        render();
-
-    } catch (err) {
-        alert("Error updating");
-    }
-}
-        
-        async function deleteTx(id) {
-    if (!confirm("Delete this transaction?")) return;
-
-    try {
-        await fetch(LOGIN_API, {
-            method: "POST",
-            body: JSON.stringify({
-                action: "delete",
-                id: id
-            })
-        });
-
-        transactions = transactions.filter(t => t.id !== id);
-        render();
-
-    } catch (err) {
-        alert("Error deleting");
-    }
-}
-        
-        async function loadTransactions() {
-    try {
-        let res = await fetch(LOGIN_API);
-        let data = await res.json();
-
-        console.log("RAW DATA:", data);
-
-        if (!Array.isArray(data)) {
-            throw new Error("Invalid data format");
+            } catch (err) {
+                alert("Error saving data");
+            } finally {
+                hideLoading(); // ALWAYS runs
+            }
         }
 
-        transactions = data.map(r => ({
-            id: Number(r.ID),
-            name: r.Name,
-            weight: Number(r.Weight),
-            rate: Number(r.Rate),
-            amount: Number(r.Amt),
-            type: (r["Buy/Sell"] || "").toLowerCase(),
-            done: (r["Settled"] || "").toLowerCase() === "yes",
-            date: r["Date/Time"]
-        }));
+        async function toggle(id) {
+            let tx = transactions.find(t => t.id === id);
+            if (!tx) return;
 
-        render();
+            tx.done = !tx.done;
+            showLoading();
+            try {
+                await fetch(LOGIN_API, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "settle",
+                        id: id,
+                        settled: tx.done ? "Yes" : "No"
+                    })
+                });
 
-    } catch (err) {
-        console.error(err);
-        alert("Error loading data: " + err.message);
-    }
-}
-        
+                render();
+
+            } catch (err) {
+                alert("Error updating");
+            } finally {
+                hideLoading(); // ALWAYS runs
+            }
+        }
+
+        async function deleteTx(id) {
+            if (!confirm("Delete this transaction?")) return;
+
+            showLoading();
+            try {
+                await fetch(LOGIN_API, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        action: "delete",
+                        id: id
+                    })
+                });
+
+                transactions = transactions.filter(t => t.id !== id);
+                render();
+
+            } catch (err) {
+                alert("Error deleting");
+            } finally {
+                hideLoading(); // ALWAYS runs
+            }
+        }
+
+        async function loadTransactions() {
+            showLoading();
+            try {
+                let res = await fetch(LOGIN_API);
+                let data = await res.json();
+
+                console.log("RAW DATA:", data);
+
+                if (!Array.isArray(data)) {
+                    throw new Error("Invalid data format");
+                }
+
+                transactions = data.map(r => ({
+                    id: Number(r.ID),
+                    name: r.Name,
+                    weight: Number(r.Weight),
+                    rate: Number(r.Rate),
+                    amount: Number(r.Amt),
+                    type: (r["Buy/Sell"] || "").toLowerCase(),
+                    done: (r["Settled"] || "").toLowerCase() === "yes",
+                    date: r["Date/Time"]
+                }));
+
+                render();
+
+            } catch (err) {
+                console.error(err);
+                alert("Error loading data: " + err.message);
+            } finally {
+                hideLoading(); // ALWAYS runs
+            }
+        }
+
         async function login() {
             let userId = document.getElementById('userId').value.trim();
             let password = document.getElementById('password').value.trim();
